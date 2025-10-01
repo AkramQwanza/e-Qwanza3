@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Main backgrounds with blue gradients */
+    --background: 210 17% 98%;
+    --foreground: 220 39% 11%;
+    
+    /* Cards with glassmorphism effect */
+    --card: 210 100% 99%;
+    --card-foreground: 220 39% 11%;
+    
+    /* Popover styling */
+    --popover: 210 100% 99%;
+    --popover-foreground: 220 39% 11%;
+    
+    /* Primary blue theme */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 91% 55%;
+    --primary-glow: 217 100% 70%;
+    
+    /* Secondary with blue undertones */
+    --secondary: 210 30% 93%;
+    --secondary-foreground: 220 39% 11%;
+    
+    /* Muted colors */
+    --muted: 210 30% 96%;
+    --muted-foreground: 220 14% 46%;
+    
+    /* Accent blue */
+    --accent: 213 94% 68%;
+    --accent-foreground: 0 0% 100%;
+    
+    /* Destructive */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Borders and inputs */
+    --border: 210 30% 89%;
+    --input: 210 30% 96%;
+    --ring: 217 91% 60%;
+    
+    /* Chat specific colors */
+    --chat-user-bg: 217 91% 60%;
+    --chat-user-text: 0 0% 100%;
+    --chat-bot-bg: 210 30% 96%;
+    --chat-bot-text: 220 39% 11%;
+    
+    /* Sidebar colors */
+    --sidebar-background: 210 25% 97%;
+    --sidebar-foreground: 220 39% 11%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 30% 93%;
+    --sidebar-accent-foreground: 220 39% 11%;
+    --sidebar-border: 210 30% 89%;
+    --sidebar-ring: 217 91% 60%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%) 0%, hsl(213 94% 68%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(210 30% 96%) 0%, hsl(210 100% 99%) 100%);
+    --gradient-background: linear-gradient(135deg, hsl(210 17% 98%) 0%, hsl(210 30% 96%) 100%);
+    
+    /* Shadows with blue glow */
+    --shadow-blue: 0 4px 20px -2px hsl(217 91% 60% / 0.1);
+    --shadow-blue-lg: 0 8px 40px -4px hsl(217 91% 60% / 0.15);
+    
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Dark theme with blue accents */
+    --background: 220 39% 11%;
+    --foreground: 210 17% 98%;
+    
+    --card: 220 39% 14%;
+    --card-foreground: 210 17% 98%;
+    
+    --popover: 220 39% 14%;
+    --popover-foreground: 210 17% 98%;
+    
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 91% 65%;
+    --primary-glow: 217 100% 80%;
+    
+    --secondary: 220 39% 18%;
+    --secondary-foreground: 210 17% 98%;
+    
+    --muted: 220 39% 18%;
+    --muted-foreground: 220 14% 71%;
+    
+    --accent: 213 94% 68%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 220 39% 18%;
+    --input: 220 39% 18%;
+    --ring: 217 91% 60%;
+    
+    /* Dark chat colors */
+    --chat-user-bg: 217 91% 60%;
+    --chat-user-text: 0 0% 100%;
+    --chat-bot-bg: 220 39% 18%;
+    --chat-bot-text: 210 17% 98%;
+    
+    /* Dark sidebar */
+    --sidebar-background: 220 39% 11%;
+    --sidebar-foreground: 210 17% 98%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 39% 18%;
+    --sidebar-accent-foreground: 210 17% 98%;
+    --sidebar-border: 220 39% 18%;
+    --sidebar-ring: 217 91% 60%;
+    
+    /* Dark gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%) 0%, hsl(213 94% 68%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(220 39% 18%) 0%, hsl(220 39% 14%) 100%);
+    --gradient-background: linear-gradient(135deg, hsl(220 39% 11%) 0%, hsl(220 39% 14%) 100%);
+    
+    /* Dark shadows with blue glow */
+    --shadow-blue: 0 4px 20px -2px hsl(217 91% 60% / 0.2);
+    --shadow-blue-lg: 0 8px 40px -4px hsl(217 91% 60% / 0.3);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
