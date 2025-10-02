@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "@/components/LoginForm";
 import { RegisterForm } from "@/components/RegisterForm";
 import { useToast } from "@/hooks/use-toast";
-import { ThemeProvider } from "@/hooks/use-theme";
 import { Bot, Sparkles } from "lucide-react";
 
 const Auth = () => {
@@ -75,8 +74,7 @@ const Auth = () => {
   };
 
   return (
-    <ThemeProvider defaultTheme="light" storageKey="chatbot-theme">
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           {/* Header avec logo */}
           <div className="text-center mb-8">
@@ -121,7 +119,6 @@ const Auth = () => {
           </div>
         </div>
       </div>
-    </ThemeProvider>
   );
 };
 

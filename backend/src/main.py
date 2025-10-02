@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import base, data, nlp, user, conversation, message
+from routes import base, data, nlp, user, conversation, message, personal_projects
 from helpers.config import get_settings
 from stores.llm.LLMProviderFactory import LLMProviderFactory
 from stores.vectordb.VectorDBProviderFactory import VectorDBProviderFactory
@@ -67,3 +67,4 @@ app.include_router(nlp.nlp_router)
 app.include_router(user.user_router)
 app.include_router(conversation.conversation_router)
 app.include_router(message.message_router)
+app.include_router(personal_projects.personal_projects_router)

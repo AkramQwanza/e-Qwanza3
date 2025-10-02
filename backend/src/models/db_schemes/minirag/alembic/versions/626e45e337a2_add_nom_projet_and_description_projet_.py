@@ -1,8 +1,8 @@
-"""initial_schema
+"""add_nom_projet_and_description_projet_nullable
 
-Revision ID: 37744dbaecbc
+Revision ID: 626e45e337a2
 Revises: 
-Create Date: 2025-09-29 17:51:44.341738
+Create Date: 2025-10-02 00:10:16.616340
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '37744dbaecbc'
+revision: str = '626e45e337a2'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -25,7 +25,7 @@ def upgrade() -> None:
     sa.Column('user_uuid', sa.UUID(), nullable=False),
     sa.Column('first_name', sa.String(), nullable=False),
     sa.Column('last_name', sa.String(), nullable=False),
-    sa.Column('user_role', sa.String(), nullable=False),
+    sa.Column('user_role', sa.Enum('ADMIN', 'USER', 'MODERATOR', name='user_role_enum'), nullable=False),
     sa.Column('email', sa.String(), nullable=False),
     sa.Column('password_hash', sa.String(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -37,6 +37,8 @@ def upgrade() -> None:
     op.create_table('projects',
     sa.Column('project_id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('project_uuid', sa.UUID(), nullable=False),
+    sa.Column('nom_projet', sa.String(length=255), nullable=False),
+    sa.Column('description_projet', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('user_id', sa.Integer(), nullable=True),

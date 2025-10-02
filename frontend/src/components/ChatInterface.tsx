@@ -43,7 +43,7 @@ export const ChatInterface = ({ messages, onSendMessage, isLoading = false }: Ch
   return (
     <div className="flex flex-col h-full bg-gradient-background relative">
       {/* Messages Container - Scrollable area */}
-      <ScrollArea className="flex-1 p-4 pb-20" ref={scrollAreaRef}>
+      <ScrollArea className="flex-1 p-4 pb-24 min-h-0" ref={scrollAreaRef}>
         <div className="max-w-4xl mx-auto space-y-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center">
@@ -113,7 +113,7 @@ export const ChatInterface = ({ messages, onSendMessage, isLoading = false }: Ch
       </ScrollArea>
 
       {/* Input Container - Fixed at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 border-t border-border bg-card/90 backdrop-blur-sm p-4">
+      <div className="absolute bottom-0 left-0 right-0 border-t border-border bg-card/95 backdrop-blur-md p-4 z-10">
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
           <div className="flex gap-2">
             <Input
@@ -121,12 +121,13 @@ export const ChatInterface = ({ messages, onSendMessage, isLoading = false }: Ch
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Tapez votre message ici..."
               disabled={isLoading}
-              className="flex-1 bg-background/80 backdrop-blur-sm border-border/50"
+              className="flex-1 bg-background/90 backdrop-blur-sm border-border/50 focus:ring-2 focus:ring-primary/20"
+              autoComplete="off"
             />
             <Button
               type="submit"
               disabled={!inputValue.trim() || isLoading}
-              className="bg-gradient-primary hover:bg-primary-hover shadow-blue transition-all duration-300"
+              className="bg-gradient-primary hover:bg-primary-hover shadow-blue transition-all duration-300 px-6"
             >
               <Send className="w-4 h-4" />
             </Button>

@@ -1,22 +1,25 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChatInterface, Message } from "@/components/ChatInterface";
 import { ChatSidebar, ChatSession } from "@/components/ChatSidebar";
 import { DocumentUpload, UploadedDocument } from "@/components/DocumentUpload";
 import { ModeSelector, ChatMode } from "@/components/ModeSelector";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { RagSettings, RagConfig } from "@/components/RagSettings";
-import { ThemeProvider } from "@/hooks/use-theme";
+import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trash2, FilePlus2 } from "lucide-react";
+import { Trash2, FilePlus2, Plus, MoreVertical, MessageSquare } from "lucide-react";
 import { Menu, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { enterpriseApiClient, personalApiClient } from "@/lib/api";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [chatMode, setChatMode] = useState<ChatMode>('enterprise');
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -24,7 +27,7 @@ const Index = () => {
   const [sessionMessages, setSessionMessages] = useState<Record<string, Message[]>>({});
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [ragConfig, setRagConfig] = useState<RagConfig>(() => {
     const saved = localStorage.getItem('ragConfig');
     return saved ? JSON.parse(saved) : {
@@ -179,11 +182,17 @@ const Index = () => {
     setMessages([]);
     setSidebarOpen(false);
     
+    // Rediriger vers la page des projets personnels si on passe en mode personnel
+    if (mode === 'personal') {
+      navigate('/personal');
+      return;
+    }
+    
     toast({
       title: `Mode ${mode === 'enterprise' ? 'Entreprise' : 'Personnel'}`,
       description: `Vous êtes maintenant en mode ${mode === 'enterprise' ? 'entreprise avec historique' : 'personnel avec documents'}.`,
     });
-  }, [toast]);
+  }, [toast, navigate]);
 
   // Charger les assets (entreprise)
   const loadAssets = useCallback(async () => {
@@ -333,8 +342,12 @@ const Index = () => {
   }, []);
 
   return (
-    <ThemeProvider defaultTheme="light" storageKey="chatbot-theme">
-      <div className="h-screen flex bg-gradient-background">
+    <Layout 
+      className="h-screen" 
+      sidebarOpen={sidebarOpen} 
+      onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+    >
+        <div className="h-full flex bg-gradient-background">
         {/* Sidebar - Desktop */}
         <div className={cn(
           "hidden md:block transition-all duration-300",
@@ -343,14 +356,71 @@ const Index = () => {
           {sidebarOpen && (
             <>
               {chatMode === 'enterprise' ? (
-                <ChatSidebar
-                  sessions={sessions}
-                  currentSessionId={currentSessionId}
-                  onSessionSelect={handleSessionSelect}
-                  onNewChat={handleNewChat}
-                  onDeleteSession={handleDeleteSession}
-                  onRenameSession={handleRenameSession}
-                />
+                <div className="h-full flex flex-col bg-card/50 backdrop-blur-sm">
+                  {/* Historique des conversations */}
+                  <div className="flex-1 p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-medium">Conversations</h3>
+                      <Button size="sm" onClick={handleNewChat}>
+                        <Plus className="w-4 h-4 mr-1" />
+                        Nouvelle
+                      </Button>
+                    </div>
+                    
+                    <ScrollArea className="h-[calc(100vh-100px)]">
+                      <div className="space-y-2">
+                        {sessions.map((session) => (
+                          <div
+                            key={session.id}
+                            className={cn(
+                              "p-3 rounded-lg cursor-pointer transition-colors",
+                              currentSessionId === session.id
+                                ? "bg-primary/10 border border-primary/20"
+                                : "hover:bg-muted/50"
+                            )}
+                            onClick={() => handleSessionSelect(session.id)}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm truncate" title={session.title}>
+                                  {session.title}
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {session.messageCount} message{session.messageCount !== 1 ? 's' : ''} • {session.timestamp.toLocaleDateString('fr-FR')}
+                                </div>
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleSessionSelect(session.id)}>
+                                    Ouvrir
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleDeleteSession(session.id)}
+                                    className="text-destructive"
+                                  >
+                                    Supprimer
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {sessions.length === 0 && (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Aucune conversation</p>
+                          </div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </div>
               ) : (
                 <DocumentUpload
                   documents={documents}
@@ -366,16 +436,88 @@ const Index = () => {
         {sidebarOpen && (
           <div className="fixed inset-0 z-50 md:hidden">
             <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-            <div className="fixed left-0 top-0 h-full">
+            <div className="fixed left-0 top-0 h-full w-80 bg-card/95 backdrop-blur-sm">
               {chatMode === 'enterprise' ? (
-                <ChatSidebar
-                  sessions={sessions}
-                  currentSessionId={currentSessionId}
-                  onSessionSelect={handleSessionSelect}
-                  onNewChat={handleNewChat}
-                  onDeleteSession={handleDeleteSession}
-                  onRenameSession={handleRenameSession}
-                />
+                <div className="h-full flex flex-col">
+                  {/* Header mobile */}
+                  <div className="p-4 border-b border-border">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="font-semibold text-lg">Mode Entreprise</h2>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSidebarOpen(false)}
+                        className="hover:bg-sidebar-accent"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Historique des conversations */}
+                  <div className="flex-1 p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-medium">Conversations</h3>
+                      <Button size="sm" onClick={handleNewChat}>
+                        <Plus className="w-4 h-4 mr-1" />
+                        Nouvelle
+                      </Button>
+                    </div>
+                    
+                    <ScrollArea className="h-[calc(100vh-200px)]">
+                      <div className="space-y-2">
+                        {sessions.map((session) => (
+                          <div
+                            key={session.id}
+                            className={cn(
+                              "p-3 rounded-lg cursor-pointer transition-colors",
+                              currentSessionId === session.id
+                                ? "bg-primary/10 border border-primary/20"
+                                : "hover:bg-muted/50"
+                            )}
+                            onClick={() => handleSessionSelect(session.id)}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm truncate" title={session.title}>
+                                  {session.title}
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {session.messageCount} message{session.messageCount !== 1 ? 's' : ''} • {session.timestamp.toLocaleDateString('fr-FR')}
+                                </div>
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreVertical className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleSessionSelect(session.id)}>
+                                    Ouvrir
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleDeleteSession(session.id)}
+                                    className="text-destructive"
+                                  >
+                                    Supprimer
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {sessions.length === 0 && (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Aucune conversation</p>
+                          </div>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </div>
               ) : (
                 <DocumentUpload
                   documents={documents}
@@ -388,79 +530,8 @@ const Index = () => {
         )}
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col min-w-0 h-screen">
-          {/* Header - Fixed */}
-          <header className="bg-card/50 backdrop-blur-sm border-b border-border p-4 flex items-center justify-between sticky top-0 z-10">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="hover:bg-sidebar-accent"
-              >
-                {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-              </Button>
-              <h1 className="text-lg font-semibold text-foreground">
-                e-Qwanza
-              </h1>
-            </div>
-            <div className="flex items-center gap-4">
-              {chatMode === 'enterprise' && (
-                <Sheet open={assetsOpen} onOpenChange={(open) => { setAssetsOpen(open); if (open) { loadAssets(); } }}>
-                  <SheetTrigger asChild>
-                    <Button variant="secondary" size="sm">Documents du projet</Button>
-                  </SheetTrigger>
-                  <SheetContent side="right" className="w-[420px] sm:w-[480px] p-0">
-                    <SheetHeader className="p-4 border-b">
-                      <SheetTitle>Documents du projet 7</SheetTitle>
-                    </SheetHeader>
-                    <div className="p-4 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <Input type="file" onChange={(e) => setAssetFile(e.target.files?.[0] || null)} />
-                        <Button size="sm" onClick={handleEnterpriseUpload} disabled={!assetFile || assetUploading}>
-                          <FilePlus2 className="w-4 h-4 mr-1" /> Ajouter
-                        </Button>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {assetsLoading ? "Chargement..." : `${assets.length} document(s)`}
-                      </div>
-                      <ScrollArea className="h-[60vh] pr-2">
-                        <div className="space-y-2">
-                          {assets.map((a) => (
-                            <div key={a.asset_id} className="flex items-center justify-between rounded-md border p-2">
-                              <div className="min-w-0">
-                                <div className="font-medium truncate max-w-[220px]">{a.asset_name}</div>
-                                <div className="text-xs text-muted-foreground">{Math.round(a.asset_size / 1024)} Ko</div>
-                              </div>
-                              <Button variant="ghost" size="icon" onClick={() => handleEnterpriseDelete(a.asset_name)}>
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ))}
-                          {!assetsLoading && assets.length === 0 && (
-                            <div className="text-sm text-muted-foreground">Aucun document pour le moment.</div>
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  </SheetContent>
-                </Sheet>
-              )}
-              <ModeSelector
-                currentMode={chatMode}
-                onModeChange={handleModeChange}
-              />
-              {chatMode === 'personal' && (
-                <RagSettings 
-                  ragConfig={ragConfig}
-                  onConfigChange={handleRagConfigChange}
-                />
-              )}
-              <ThemeToggle />
-            </div>
-          </header>
-
-          {/* Chat Interface - Takes remaining height */}
+        <div className="flex-1 flex flex-col min-w-0 h-full">
+          {/* Chat Interface - Takes full height */}
           <div className="flex-1 min-h-0">
             <ChatInterface
               messages={messages}
@@ -470,7 +541,7 @@ const Index = () => {
           </div>
         </div>
       </div>
-    </ThemeProvider>
+      </Layout>
   );
 };
 
