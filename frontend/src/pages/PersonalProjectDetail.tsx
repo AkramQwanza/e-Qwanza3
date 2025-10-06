@@ -46,6 +46,7 @@ const PersonalProjectDetail = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [activeTab, setActiveTab] = useState<'documents' | 'history'>('documents');
 
   // Charger les données du projet
   useEffect(() => {
@@ -58,7 +59,12 @@ const PersonalProjectDetail = () => {
 
     try {
       // Charger le projet depuis l'API
-      const apiProject = await personalProjectsApi.getProject(parseInt(projectId));
+      const numericProjectId = parseInt(projectId);
+      const apiProject = await personalProjectsApi.getProject(numericProjectId);
+      
+      // Fixer l'API client personnel sur le bon projet pour les appels (assets, upload, etc.)
+      personalApiClient.setProjectId(numericProjectId);
+      
       const projectData: PersonalProject = {
         id: apiProject.project_id.toString(),
         name: apiProject.nom_projet || 'Projet sans nom',
@@ -66,10 +72,39 @@ const PersonalProjectDetail = () => {
         createdAt: new Date(apiProject.created_at),
         updatedAt: new Date(apiProject.updated_at),
         lastActivity: new Date(apiProject.updated_at),
-        documentCount: 0, // TODO: Récupérer depuis l'API
+        documentCount: 0, // sera mis à jour après la récupération des assets
         messageCount: 0, // TODO: Récupérer depuis l'API
       };
       setProject(projectData);
+
+      // Récupérer les documents (assets) du backend pour ce projet
+      const assetsRes = await personalApiClient.listAssets();
+      if (assetsRes.ok) {
+        const docsFromApi: ProjectDocument[] = assetsRes.data.assets.map((a) => ({
+          id: `${a.asset_id}`,
+          name: a.asset_name,
+          size: a.asset_size ?? 0,
+          type: a.asset_name.split('.').pop() || 'file',
+          uploadedAt: a.created_at ? new Date(a.created_at) : new Date(),
+          status: 'processed',
+        }));
+        setDocuments(docsFromApi);
+        setProject((prev) => prev ? { ...prev, documentCount: docsFromApi.length } : prev);
+        // Persister localement pour cohérence avec le reste du flux
+        localStorage.setItem(`project_${projectId}_documents`, JSON.stringify(docsFromApi));
+      } else {
+        console.error('Erreur lors du chargement des assets:', assetsRes.error);
+        // Fallback sur localStorage si l'API échoue
+        const savedDocuments = localStorage.getItem(`project_${projectId}_documents`);
+        if (savedDocuments) {
+          const documentsData = JSON.parse(savedDocuments);
+          const documentsWithDates = documentsData.map((doc: any) => ({
+            ...doc,
+            uploadedAt: new Date(doc.uploadedAt),
+          }));
+          setDocuments(documentsWithDates);
+        }
+      }
     } catch (error) {
       console.error('Erreur lors du chargement du projet:', error);
       toast({
@@ -79,17 +114,6 @@ const PersonalProjectDetail = () => {
       });
       navigate('/personal');
       return;
-    }
-
-    // Charger les documents
-    const savedDocuments = localStorage.getItem(`project_${projectId}_documents`);
-    if (savedDocuments) {
-      const documentsData = JSON.parse(savedDocuments);
-      const documentsWithDates = documentsData.map((doc: any) => ({
-        ...doc,
-        uploadedAt: new Date(doc.uploadedAt),
-      }));
-      setDocuments(documentsWithDates);
     }
 
     // Charger les sessions
@@ -289,8 +313,21 @@ const PersonalProjectDetail = () => {
     }
   }, [projectId, documents, project, toast]);
 
-  // Supprimer un document
-  const handleDeleteDocument = useCallback((documentId: string) => {
+  // Supprimer un document (API + état local)
+  const handleDeleteDocument = useCallback(async (documentId: string) => {
+    const docToDelete = documents.find(d => d.id === documentId);
+    try {
+      if (docToDelete) {
+        await personalApiClient.deleteAsset(docToDelete.name);
+      }
+    } catch (e: any) {
+      toast({
+        title: "Suppression côté serveur échouée",
+        description: e?.message || "Impossible de supprimer le document sur le serveur.",
+        variant: "destructive",
+      });
+    }
+
     const updatedDocuments = documents.filter(doc => doc.id !== documentId);
     saveDocuments(updatedDocuments);
     
@@ -424,7 +461,7 @@ const PersonalProjectDetail = () => {
     <Layout>
       <div className="h-[calc(100vh-4rem)] flex bg-gradient-background">
       {/* Sidebar - Documents et Sessions */}
-      <div className={`${sidebarOpen ? 'w-80' : 'w-0'} transition-all duration-300 border-r border-border bg-card/50 backdrop-blur-sm overflow-hidden`}>
+      <div className={`${sidebarOpen ? 'w-80' : 'w-0'} transition-all duration-300 border-r border-border bg-card/50 backdrop-blur-sm overflow-hidden flex-shrink-0`}>
         <div className="h-full flex flex-col">
           {/* Header Sidebar */}
           <div className="p-4 border-b border-border">
@@ -459,11 +496,12 @@ const PersonalProjectDetail = () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-border">
+          <div className="flex items-center border-b border-border">
             <Button
               variant="ghost"
               size="sm"
-              className="flex-1 rounded-none border-b-2 border-primary"
+              onClick={() => setActiveTab('documents')}
+              className={`flex-1 rounded-none ${activeTab === 'documents' ? 'border-b-2 border-primary' : ''}`}
             >
               <FileText className="w-4 h-4 mr-2" />
               Documents
@@ -471,7 +509,8 @@ const PersonalProjectDetail = () => {
             <Button
               variant="ghost"
               size="sm"
-              className="flex-1 rounded-none"
+              onClick={() => setActiveTab('history')}
+              className={`flex-1 rounded-none ${activeTab === 'history' ? 'border-b-2 border-primary' : ''}`}
             >
               <History className="w-4 h-4 mr-2" />
               Historique
@@ -480,7 +519,7 @@ const PersonalProjectDetail = () => {
 
           {/* Content */}
           <ScrollArea className="flex-1 p-4">
-            {/* Documents Section */}
+            {activeTab === 'documents' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">Documents</h3>
@@ -528,30 +567,48 @@ const PersonalProjectDetail = () => {
 
               <div className="space-y-2">
                 {documents.map((doc) => (
-                  <Card key={doc.id} className="p-3">
-                    <div className="flex items-center justify-between">
+                  <Card key={doc.id} className="p-0 overflow-hidden">
+                    {/* <div className="p-3 flex items-center justify-between gap-4">
                       <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm whitespace-nowrap overflow-hidden text-ellipsis" title={doc.name}></div> */}
+                    <div className="p-3 flex items-center justify-between">
+                      <div className="flex-1 min-w-0 ">
                         <div className="font-medium text-sm truncate" title={doc.name}>
                           {doc.name}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {Math.round(doc.size / 1024)} Ko • {doc.uploadedAt.toLocaleDateString('fr-FR')}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                          <span>{Math.round(doc.size / 1024)} Ko</span>
+                          <span>•</span>
+                          <span>{doc.uploadedAt.toLocaleDateString('fr-FR')}</span>
+                          <Badge 
+                            variant={doc.status === 'processed' ? 'default' : doc.status === 'error' ? 'destructive' : 'secondary'}
+                            className="text-[10px] px-1 py-0"
+                          >
+                            {doc.status === 'uploading' ? 'Traitement...' : 
+                             doc.status === 'processed' ? 'Traité' : 'Erreur'}
+                          </Badge>
                         </div>
-                        <Badge 
-                          variant={doc.status === 'processed' ? 'default' : doc.status === 'error' ? 'destructive' : 'secondary'}
-                          className="text-xs mt-1"
-                        >
-                          {doc.status === 'uploading' ? 'Traitement...' : 
-                           doc.status === 'processed' ? 'Traité' : 'Erreur'}
-                        </Badge>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteDocument(doc.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {/* Menu déroulant pour les actions (Suppression) */}
+                      {/* <div className="flex-shrink-0 flex items-center"> */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="w-8 h-8 p-0">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {/* Vous pourriez ajouter 'Télécharger' ou 'Renommer' ici si besoin */}
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteDocument(doc.id)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Supprimer
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      {/* </div> */}
                     </div>
                   </Card>
                 ))}
@@ -564,10 +621,9 @@ const PersonalProjectDetail = () => {
                 )}
               </div>
             </div>
+            )}
 
-            <Separator className="my-4" />
-
-            {/* Sessions Section */}
+            {activeTab === 'history' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">Conversations</h3>
@@ -625,6 +681,7 @@ const PersonalProjectDetail = () => {
                 )}
               </div>
             </div>
+            )}
           </ScrollArea>
         </div>
       </div>

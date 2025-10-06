@@ -23,7 +23,7 @@ class DataController(BaseController):
 
     def generate_unique_filepath(self, orig_file_name: str, project_id: str):
 
-        random_key = self.generate_random_string()
+        # random_key = self.generate_random_string()
         project_path = ProjectController().get_project_path(project_id=project_id)
 
         cleaned_file_name = self.get_clean_file_name(
@@ -32,17 +32,19 @@ class DataController(BaseController):
 
         new_file_path = os.path.join(
             project_path,
-            random_key + "_" + cleaned_file_name
+            # random_key + "_" + 
+            cleaned_file_name
         )
 
+        # Handle duplicate files by adding a number suffix
+        counter = 1
+        original_path = new_file_path
         while os.path.exists(new_file_path):
-            random_key = self.generate_random_string()
-            new_file_path = os.path.join(
-                project_path,
-                random_key + "_" + cleaned_file_name
-            )
+            name, ext = os.path.splitext(original_path)
+            new_file_path = f"{name}_{counter}{ext}"
+            counter += 1
 
-        return new_file_path, random_key + "_" + cleaned_file_name
+        return new_file_path, cleaned_file_name
 
     def get_clean_file_name(self, orig_file_name: str):
 
@@ -50,7 +52,7 @@ class DataController(BaseController):
         cleaned_file_name = re.sub(r'[^\w.]', '', orig_file_name.strip())
 
         # replace spaces with underscore
-        cleaned_file_name = cleaned_file_name.replace(" ", "_")
+        # cleaned_file_name = cleaned_file_name.replace(" ", "_")  # Commenté pour garder les espaces
 
         return cleaned_file_name
 
