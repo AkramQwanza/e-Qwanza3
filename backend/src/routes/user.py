@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from helpers.config import get_settings, Settings
 from models.UserModel import UserModel
 from models.db_schemes import User, UserRole
+from helpers.security import hash_password
 
 
 user_router = APIRouter(
@@ -29,7 +30,7 @@ async def create_user_endpoint(request: Request, payload: dict, app_settings: Se
         last_name=payload.get("last_name"),
         user_role=user_role or UserRole.USER,
         email=payload.get("email"),
-        password_hash=payload.get("password_hash"),
+        password_hash=hash_password(payload.get("password")) if payload.get("password") else payload.get("password_hash"),
     )
     created = await user_model.create_user(record)
     return {"user_id": created.user_id, "email": created.email}

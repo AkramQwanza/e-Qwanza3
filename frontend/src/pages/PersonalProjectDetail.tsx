@@ -93,7 +93,7 @@ const PersonalProjectDetail = () => {
         // Persister localement pour cohérence avec le reste du flux
         localStorage.setItem(`project_${projectId}_documents`, JSON.stringify(docsFromApi));
       } else {
-        console.error('Erreur lors du chargement des assets:', assetsRes.error);
+        console.error('Erreur lors du chargement des assets:', (assetsRes as { ok: false; error: string }).error);
         // Fallback sur localStorage si l'API échoue
         const savedDocuments = localStorage.getItem(`project_${projectId}_documents`);
         if (savedDocuments) {
@@ -116,69 +116,92 @@ const PersonalProjectDetail = () => {
       return;
     }
 
-    // Charger les sessions
-    const savedSessions = localStorage.getItem(`project_${projectId}_sessions`);
-    if (savedSessions) {
-      const sessionsData = JSON.parse(savedSessions);
-      const sessionsWithDates = sessionsData.map((session: any) => ({
-        ...session,
-        timestamp: new Date(session.timestamp),
+    // Charger les conversations depuis l'API
+    const conversationsRes = await personalApiClient.listConversations();
+    if (conversationsRes.ok) {
+      const sessionsFromApi: ProjectSession[] = conversationsRes.data.map((conv) => ({
+        id: conv.conversation_id.toString(),
+        projectId: projectId,
+        title: conv.conversation_title,
+        lastMessage: conv.conversation_description || "Conversation créée",
+        timestamp: new Date(), // TODO: récupérer depuis l'API si disponible
+        messageCount: 0, // sera mis à jour après la récupération des messages
       }));
-      setSessions(sessionsWithDates);
-    }
+      setSessions(sessionsFromApi);
+      setProject((prev) => prev ? { ...prev, messageCount: sessionsFromApi.length } : prev);
 
-    // Charger les messages
-    const savedMessages = localStorage.getItem(`project_${projectId}_messages`);
-    if (savedMessages) {
-      const messagesData = JSON.parse(savedMessages);
-      const messagesWithDates: Record<string, Message[]> = {};
-      Object.keys(messagesData).forEach(sessionId => {
-        messagesWithDates[sessionId] = messagesData[sessionId].map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp),
-        }));
-      });
-      setSessionMessages(messagesWithDates);
+      // Charger les messages pour chaque conversation
+      const allMessages: Record<string, Message[]> = {};
+      for (const session of sessionsFromApi) {
+        const messagesRes = await personalApiClient.listMessages(parseInt(session.id));
+        if (messagesRes.ok) {
+          const messagesFromApi: Message[] = messagesRes.data.map((msg) => ({
+            id: msg.message_id.toString(),
+            content: msg.message_content,
+            type: msg.message_sender === 'user' ? 'user' : 'bot',
+            timestamp: new Date(), // TODO: récupérer depuis l'API si disponible
+          }));
+          allMessages[session.id] = messagesFromApi;
+        }
+      }
+      setSessionMessages(allMessages);
+    } else {
+        console.error('Erreur lors du chargement des conversations:', (conversationsRes as { ok: false; error: string }).error);
     }
   };
 
   // Sauvegarder les documents
   const saveDocuments = (updatedDocuments: ProjectDocument[]) => {
     setDocuments(updatedDocuments);
-    localStorage.setItem(`project_${projectId}_documents`, JSON.stringify(updatedDocuments));
   };
 
-  // Sauvegarder les sessions
+  // Sauvegarder les sessions (conversations)
   const saveSessions = (updatedSessions: ProjectSession[]) => {
     setSessions(updatedSessions);
-    localStorage.setItem(`project_${projectId}_sessions`, JSON.stringify(updatedSessions));
   };
 
   // Sauvegarder les messages
   const saveMessages = (updatedMessages: Record<string, Message[]>) => {
     setSessionMessages(updatedMessages);
-    localStorage.setItem(`project_${projectId}_messages`, JSON.stringify(updatedMessages));
   };
 
   // Créer une nouvelle session
-  const createNewSession = useCallback(() => {
+  const createNewSession = useCallback(async () => {
     if (!projectId) return;
     
-    const newSessionId = Date.now().toString();
-    const newSession: ProjectSession = {
-      id: newSessionId,
-      projectId,
-      title: "Nouvelle conversation",
-      lastMessage: "Conversation créée",
-      timestamp: new Date(),
-      messageCount: 0,
-    };
-    
-    const updatedSessions = [newSession, ...sessions];
-    saveSessions(updatedSessions);
-    setCurrentSessionId(newSessionId);
-    setMessages([]);
-  }, [projectId, sessions]);
+    try {
+      const conversationRes = await personalApiClient.createConversation("Nouvelle conversation", "Conversation créée");
+      if (conversationRes.ok) {
+        const newSession: ProjectSession = {
+          id: conversationRes.data.conversation_id.toString(),
+          projectId,
+          title: "Nouvelle conversation",
+          lastMessage: "Conversation créée",
+          timestamp: new Date(),
+          messageCount: 0,
+        };
+        
+        const updatedSessions = [newSession, ...sessions];
+        saveSessions(updatedSessions);
+        setCurrentSessionId(newSession.id);
+        setMessages([]);
+      } else {
+        console.error('Erreur lors de la création de la conversation:', (conversationRes as { ok: false; error: string }).error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de créer une nouvelle conversation",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de la création de la conversation:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de créer une nouvelle conversation",
+        variant: "destructive",
+      });
+    }
+  }, [projectId, sessions, toast]);
 
   // Sélectionner une session
   const handleSessionSelect = useCallback((sessionId: string) => {
@@ -188,23 +211,33 @@ const PersonalProjectDetail = () => {
   }, [sessionMessages]);
 
   // Supprimer une session
-  const handleDeleteSession = useCallback((sessionId: string) => {
-    const updatedSessions = sessions.filter(s => s.id !== sessionId);
-    saveSessions(updatedSessions);
-    
-    const updatedMessages = { ...sessionMessages };
-    delete updatedMessages[sessionId];
-    saveMessages(updatedMessages);
-    
-    if (currentSessionId === sessionId) {
-      setCurrentSessionId(null);
-      setMessages([]);
+  const handleDeleteSession = useCallback(async (sessionId: string) => {
+    try {
+      await personalApiClient.deleteConversation(parseInt(sessionId));
+
+      const updatedSessions = sessions.filter(s => s.id !== sessionId);
+      saveSessions(updatedSessions);
+      
+      const updatedMessages = { ...sessionMessages } as Record<string, Message[]>;
+      delete updatedMessages[sessionId];
+      saveMessages(updatedMessages);
+      
+      if (currentSessionId === sessionId) {
+        setCurrentSessionId(null);
+        setMessages([]);
+      }
+      
+      toast({
+        title: "Session supprimée",
+        description: "La conversation a été supprimée avec succès.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Erreur",
+        description: e?.message || "Impossible de supprimer la conversation.",
+        variant: "destructive",
+      });
     }
-    
-    toast({
-      title: "Session supprimée",
-      description: "La conversation a été supprimée avec succès.",
-    });
   }, [sessions, sessionMessages, currentSessionId, toast]);
 
   // Renommer une session
@@ -357,7 +390,7 @@ const PersonalProjectDetail = () => {
   // Envoyer un message
   const handleSendMessage = useCallback(async (content: string) => {
     if (!currentSessionId) {
-      createNewSession();
+      await createNewSession();
       return;
     }
 
@@ -376,6 +409,13 @@ const PersonalProjectDetail = () => {
     });
     setIsLoading(true);
 
+    // Sauvegarder le message utilisateur dans la base de données
+    try {
+      await personalApiClient.createMessage(content, "user", parseInt(currentSessionId));
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde du message utilisateur:', error);
+    }
+
     // Mettre à jour la session
     const updatedSessions = sessions.map(s => 
       s.id === currentSessionId 
@@ -391,6 +431,16 @@ const PersonalProjectDetail = () => {
         : s
     );
     saveSessions(updatedSessions);
+
+    // Si c'est la première fois, persister le titre en base
+    const currentSession = updatedSessions.find(s => s.id === currentSessionId);
+    if (currentSession && currentSession.title !== "Nouvelle conversation") {
+      try {
+        await personalApiClient.updateConversation(parseInt(currentSessionId), currentSession.title);
+      } catch (e) {
+        console.error('Erreur lors de la mise à jour du titre de conversation:', e);
+      }
+    }
 
     try {
       const res = await personalApiClient.answer({ text: content, limit: 4 });
@@ -411,6 +461,13 @@ const PersonalProjectDetail = () => {
         ...sessionMessages,
         [currentSessionId]: finalMessages
       });
+
+      // Sauvegarder le message bot dans la base de données
+      try {
+        await personalApiClient.createMessage(res.data.answer, "assistant", parseInt(currentSessionId));
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde du message bot:', error);
+      }
 
       // Mettre à jour le projet
       if (project) {

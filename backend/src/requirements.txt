@@ -30,3 +30,6 @@ openpyxl==3.1.5
 prettytable==3.16.0
 langchain-community==0.3.29
 sentence-transformers==5.1.0
+passlib[bcrypt]==1.7.4
+PyJWT==2.10.1
+bcrypt==4.3.0

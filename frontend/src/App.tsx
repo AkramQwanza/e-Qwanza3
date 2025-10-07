@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import PersonalProjects from "./pages/PersonalProjects";
 import PersonalProjectDetail from "./pages/PersonalProjectDetail";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -21,9 +22,9 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<Index />} />
-            <Route path="/personal" element={<PersonalProjects />} />
-            <Route path="/personal/project/:projectId" element={<PersonalProjectDetail />} />
+            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/personal" element={<ProtectedRoute><PersonalProjects /></ProtectedRoute>} />
+            <Route path="/personal/project/:projectId" element={<ProtectedRoute><PersonalProjectDetail /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -5,30 +5,20 @@ import { LoginForm } from "@/components/LoginForm";
 import { RegisterForm } from "@/components/RegisterForm";
 import { useToast } from "@/hooks/use-toast";
 import { Bot, Sparkles } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login, register } = useAuth();
 
   const handleLogin = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // TODO: Implémenter l'appel API de connexion
-      // const response = await authApi.login(email, password);
-      
-      // Simulation pour l'instant
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Stocker les infos utilisateur (simulation)
-      localStorage.setItem('user', JSON.stringify({ email, name: 'Utilisateur' }));
-      
-      toast({
-        title: "Connexion réussie",
-        description: "Bienvenue sur e-Qwanza !",
-      });
-      
+      const ok = await login(email, password);
+      if (!ok) throw new Error("Email ou mot de passe incorrect");
       navigate('/');
     } catch (error: any) {
       toast({
@@ -44,23 +34,8 @@ const Auth = () => {
   const handleRegister = async (data: { firstName: string; lastName: string; email: string; password: string }) => {
     setIsLoading(true);
     try {
-      // TODO: Implémenter l'appel API d'inscription
-      // const response = await authApi.register(data);
-      
-      // Simulation pour l'instant
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Stocker les infos utilisateur (simulation)
-      localStorage.setItem('user', JSON.stringify({ 
-        email: data.email, 
-        name: `${data.firstName} ${data.lastName}` 
-      }));
-      
-      toast({
-        title: "Compte créé avec succès",
-        description: "Bienvenue sur e-Qwanza !",
-      });
-      
+      const ok = await register(data.firstName, data.lastName, data.email, data.password);
+      if (!ok) throw new Error("Impossible de créer le compte");
       navigate('/');
     } catch (error: any) {
       toast({

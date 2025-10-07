@@ -48,49 +48,107 @@ const Index = () => {
   const [assetFile, setAssetFile] = useState<File | null>(null);
 
   // Fonction pour créer une nouvelle session
-  const createNewSession = useCallback(() => {
-    const newSessionId = Date.now().toString();
-    const newSession: ChatSession = {
-      id: newSessionId,
-      title: "Nouvelle conversation",
-      lastMessage: "Conversation créée",
-      timestamp: new Date(),
-      messageCount: 0,
-    };
-    
-    setSessions(prev => [newSession, ...prev]);
-    setCurrentSessionId(newSessionId);
-    setMessages([]);
-    setSidebarOpen(false);
-  }, []);
+  const createNewSession = useCallback(async () => {
+    try {
+      const apiClient = chatMode === 'personal' ? personalApiClient : enterpriseApiClient;
+      const conversationRes = await apiClient.createConversation("Nouvelle conversation", "Conversation créée");
+      
+      if (conversationRes.ok) {
+        const newSession: ChatSession = {
+          id: conversationRes.data.conversation_id.toString(),
+          title: "Nouvelle conversation",
+          lastMessage: "Conversation créée",
+          timestamp: new Date(),
+          messageCount: 0,
+        };
+        
+        setSessions(prev => [newSession, ...prev]);
+        setCurrentSessionId(newSession.id);
+        setMessages([]);
+        setSidebarOpen(false);
+      } else {
+        console.error('Erreur lors de la création de la conversation:', (conversationRes as { ok: false; error: string }).error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de créer une nouvelle conversation",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de la création de la conversation:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de créer une nouvelle conversation",
+        variant: "destructive",
+      });
+    }
+  }, [chatMode, toast]);
 
   // Fonction pour sélectionner une session
-  const handleSessionSelect = useCallback((sessionId: string) => {
+  const handleSessionSelect = useCallback(async (sessionId: string) => {
     setCurrentSessionId(sessionId);
-    // Charger les messages de la session sélectionnée
-    const sessionMsgs = sessionMessages[sessionId] || [];
-    setMessages(sessionMsgs);
+    
+    // Charger les messages de la session depuis l'API
+    try {
+      const apiClient = chatMode === 'personal' ? personalApiClient : enterpriseApiClient;
+      const messagesRes = await apiClient.listMessages(parseInt(sessionId));
+      
+      if (messagesRes.ok) {
+        const messagesFromApi: Message[] = messagesRes.data.map((msg) => ({
+          id: msg.message_id.toString(),
+          content: msg.message_content,
+          type: msg.message_sender === 'user' ? 'user' : 'bot',
+          timestamp: new Date(), // TODO: récupérer depuis l'API si disponible
+        }));
+        setMessages(messagesFromApi);
+        setSessionMessages(prev => ({
+          ...prev,
+          [sessionId]: messagesFromApi
+        }));
+      } else {
+        console.error('Erreur lors du chargement des messages:', (messagesRes as { ok: false; error: string }).error);
+        // Fallback sur les messages en mémoire
+        const sessionMsgs = sessionMessages[sessionId] || [];
+        setMessages(sessionMsgs);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des messages:', error);
+      // Fallback sur les messages en mémoire
+      const sessionMsgs = sessionMessages[sessionId] || [];
+      setMessages(sessionMsgs);
+    }
     setSidebarOpen(false);
-  }, [sessionMessages]);
+  }, [sessionMessages, chatMode]);
 
   // Fonction pour supprimer une session
-  const handleDeleteSession = useCallback((sessionId: string) => {
-    setSessions(prev => prev.filter(s => s.id !== sessionId));
-    // Supprimer aussi les messages de cette session
-    setSessionMessages(prev => {
-      const newSessionMessages = { ...prev };
-      delete newSessionMessages[sessionId];
-      return newSessionMessages;
-    });
-    if (currentSessionId === sessionId) {
-      setCurrentSessionId(null);
-      setMessages([]);
+  const handleDeleteSession = useCallback(async (sessionId: string) => {
+    try {
+      const apiClient = chatMode === 'personal' ? personalApiClient : enterpriseApiClient;
+      await apiClient.deleteConversation(parseInt(sessionId));
+
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      // Supprimer aussi les messages de cette session
+      setSessionMessages(prev => {
+        const newSessionMessages = { ...prev } as Record<string, Message[]>;
+        delete newSessionMessages[sessionId];
+        return newSessionMessages;
+      });
+      if (currentSessionId === sessionId) {
+        setCurrentSessionId(null);
+        setMessages([]);
+      }
+      toast({
+        title: "Session supprimée",
+        description: "La conversation a été supprimée avec succès.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Erreur",
+        description: e?.message || "Impossible de supprimer la conversation.",
+        variant: "destructive",
+      });
     }
-    toast({
-      title: "Session supprimée",
-      description: "La conversation a été supprimée avec succès.",
-    });
-  }, [currentSessionId, toast]);
+  }, [currentSessionId, toast, chatMode]);
 
   // Fonction pour renommer une session
   const handleRenameSession = useCallback((sessionId: string, newTitle: string) => {
@@ -254,10 +312,55 @@ const Index = () => {
     }
   }, [loadAssets, toast]);
 
+  // Charger les conversations depuis l'API
+  const loadConversations = useCallback(async () => {
+    try {
+      const apiClient = chatMode === 'personal' ? personalApiClient : enterpriseApiClient;
+      const conversationsRes = await apiClient.listConversations();
+      
+      if (conversationsRes.ok) {
+        const sessionsFromApi: ChatSession[] = conversationsRes.data.map((conv) => ({
+          id: conv.conversation_id.toString(),
+          title: conv.conversation_title,
+          lastMessage: conv.conversation_description || "Conversation créée",
+          timestamp: new Date(), // TODO: récupérer depuis l'API si disponible
+          messageCount: 0, // sera mis à jour après la récupération des messages
+        }));
+        setSessions(sessionsFromApi);
+
+        // Charger les messages pour chaque conversation
+        const allMessages: Record<string, Message[]> = {};
+        for (const session of sessionsFromApi) {
+          const messagesRes = await apiClient.listMessages(parseInt(session.id));
+          if (messagesRes.ok) {
+            const messagesFromApi: Message[] = messagesRes.data.map((msg) => ({
+              id: msg.message_id.toString(),
+              content: msg.message_content,
+              type: msg.message_sender === 'user' ? 'user' : 'bot',
+              timestamp: new Date(), // TODO: récupérer depuis l'API si disponible
+            }));
+            allMessages[session.id] = messagesFromApi;
+          }
+        }
+        setSessionMessages(allMessages);
+      } else {
+        console.error('Erreur lors du chargement des conversations:', (conversationsRes as { ok: false; error: string }).error);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des conversations:', error);
+    }
+  }, [chatMode]);
+
+  // Charger les assets et conversations au démarrage
+  useEffect(() => {
+    loadAssets();
+    loadConversations();
+  }, [loadAssets, loadConversations]);
+
   // Fonction pour envoyer un message
   const handleSendMessage = useCallback(async (content: string) => {
     if (!currentSessionId) {
-      createNewSession();
+      await createNewSession();
       return;
     }
 
@@ -277,6 +380,14 @@ const Index = () => {
     }));
     setIsLoading(true);
 
+    // Sauvegarder le message utilisateur dans la base de données
+    try {
+      const apiClient = chatMode === 'personal' ? personalApiClient : enterpriseApiClient;
+      await apiClient.createMessage(content, "user", parseInt(currentSessionId));
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde du message utilisateur:', error);
+    }
+
     // Mettre à jour la session avec le dernier message
     setSessions(prev => prev.map(s => 
       s.id === currentSessionId 
@@ -291,6 +402,20 @@ const Index = () => {
           } 
         : s
     ));
+
+    // Après mise à jour locale, persister le titre si nécessaire
+    const session = sessions.find(s => s.id === currentSessionId);
+    const nextTitle = session && session.title === "Nouvelle conversation" 
+      ? content.slice(0, 30) + (content.length > 30 ? "..." : "")
+      : session?.title;
+    if (nextTitle && nextTitle !== "Nouvelle conversation") {
+      try {
+        const apiClient = chatMode === 'personal' ? personalApiClient : enterpriseApiClient;
+        await apiClient.updateConversation(parseInt(currentSessionId), nextTitle);
+      } catch (e) {
+        console.error('Erreur lors de la mise à jour du titre de conversation:', e);
+      }
+    }
 
     try {
       // Utilise le client API selon le mode
@@ -319,6 +444,13 @@ const Index = () => {
           : s
       ));
 
+      // Sauvegarder le message bot dans la base de données
+      try {
+        await apiClient.createMessage(res.data.answer, "assistant", parseInt(currentSessionId));
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde du message bot:', error);
+      }
+
     } catch (error: any) {
       toast({
         title: "Erreur",
@@ -328,7 +460,7 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentSessionId, createNewSession, toast, messages]);
+  }, [currentSessionId, createNewSession, toast, messages, chatMode, sessions]);
 
   // Créer une nouvelle session au premier chargement
   const handleNewChat = useCallback(() => {
